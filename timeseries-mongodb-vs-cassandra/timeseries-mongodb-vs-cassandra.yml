@@ -72,7 +72,8 @@ Resources:
         Fn::Base64: !Sub |
           #!/bin/bash
           set -eux
-
+          export DEBIAN_FRONTEND=noninteractive
+          export NEEDRESTART_MODE=a
           # Import MongoDB public GPG key
           curl -fsSL https://www.mongodb.org/static/pgp/server-6.0.asc   | sudo gpg --dearmor -o /usr/share/keyrings/mongodb-server-6.0.gpg
 
@@ -83,7 +84,17 @@ Resources:
           apt-get update
 
           # Install MongoDB, Git, Node.js, npm
-          apt-get install -y git nodejs npm mongodb-org
+          apt-get install -y git mongodb-org
+          # Remove old nodejs (optional, but clean)
+          sudo apt remove -y nodejs npm
+
+          # Install Node.js 20 (LTS)
+          curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+          sudo apt-get install -y nodejs
+
+          # Verify
+          node --version  # Should show v20.x.x
+          npm --versions
 
           # Start and enable MongoDB service
           systemctl enable --now mongod
@@ -113,7 +124,17 @@ Resources:
           #!/bin/bash
           set -eux
           apt-get update
-          apt-get install -y openjdk-11-jdk curl git nodejs npm
+          apt-get install -y openjdk-11-jdk curl git
+          # Remove old nodejs (optional, but clean)
+          sudo apt remove -y nodejs npm
+
+          # Install Node.js 20 (LTS)
+          curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+          sudo apt-get install -y nodejs
+
+          # Verify
+          node --version  # Should show v20.x.x
+          npm --version
 
           # Install Cassandra
           echo "deb https://debian.cassandra.apache.org 41x main" | tee /etc/apt/sources.list.d/cassandra.list
