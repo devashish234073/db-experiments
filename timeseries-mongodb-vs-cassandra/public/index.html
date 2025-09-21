@@ -100,7 +100,14 @@
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ coordinates })
-            });
+            })
+                .then(response => response.json())  // parse JSON response
+                .then(data => {
+                    console.log("Response from server:", data);
+                })
+                .catch(err => {
+                    console.error("Error sending gesture:", err);
+                });
         }
 
         startCamera();
