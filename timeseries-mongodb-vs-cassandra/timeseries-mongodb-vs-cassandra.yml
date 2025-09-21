@@ -72,14 +72,24 @@ Resources:
         Fn::Base64: !Sub |
           #!/bin/bash
           set -eux
-          apt-get update
-          apt-get install -y git nodejs npm mongodb
 
-          # Start MongoDB
-          systemctl enable --now mongodb
+          # Import MongoDB public GPG key
+          curl -fsSL https://www.mongodb.org/static/pgp/server-6.0.asc   | sudo gpg --dearmor -o /usr/share/keyrings/mongodb-server-6.0.gpg
+
+          # Create list file for MongoDB
+          echo "deb [ arch=amd64,arm64 signed-by=/usr/share/keyrings/mongodb-server-6.0.gpg ] https://repo.mongodb.org/apt/ubuntu   jammy/mongodb-org/6.0 multiverse" | sudo tee /etc/apt/sources.list.d/mongodb-org-6.0.list
+
+          # Update package list
+          apt-get update
+
+          # Install MongoDB, Git, Node.js, npm
+          apt-get install -y git nodejs npm mongodb-org
+
+          # Start and enable MongoDB service
+          systemctl enable --now mongod
 
           # Clone repo as ubuntu user
-          sudo -u ubuntu -H git clone https://github.com/devashish234073/db-experiments.git /home/ubuntu/db-experiments
+          sudo -u ubuntu -H git clone https://github.com/devashish234073/db-experiments.git   /home/ubuntu/db-experiments
 
           cd /home/ubuntu/db-experiments/timeseries-mongodb-vs-cassandra
           sudo -u ubuntu -H npm install
