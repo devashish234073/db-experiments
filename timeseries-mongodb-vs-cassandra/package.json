@@ -1,0 +1,14 @@
+{
+  "name": "timeseries-mongodb-vs-cassandra",
+  "version": "1.0.0",
+  "main": "server-mongo.js",
+  "dependencies": {
+    "express": "^4.18.2",
+    "mongodb": "^5.0.0",
+    "cassandra-driver": "^4.6.0"
+  },
+  "scripts": {
+    "start-mongo": "node server-mongo.js",
+    "start-cassandra": "node server-cassandra.js"
+  }
+}
