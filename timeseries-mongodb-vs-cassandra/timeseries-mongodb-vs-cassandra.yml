@@ -57,7 +57,7 @@ Resources:
           ToPort: 3000
           CidrIp: 0.0.0.0/0
 
-  EC2Instance1:
+  MongoDbInstance:
     Type: AWS::EC2::Instance
     Properties:
       InstanceType: t3.micro
@@ -86,7 +86,7 @@ Resources:
           npm install
           nohup node server-mongo.js > mongo-app.log 2>&1 &
 
-  EC2Instance2:
+  CassandraInstance:
     Type: AWS::EC2::Instance
     Properties:
       InstanceType: t3.micro
@@ -118,8 +118,8 @@ Resources:
 Outputs:
   MongoDBInstancePublicIP:
     Description: Public IP of MongoDB Node.js App
-    Value: !GetAtt EC2Instance1.PublicIp
+    Value: !GetAtt MongoDbInstance.PublicIp
 
   CassandraInstancePublicIP:
     Description: Public IP of Cassandra Node.js App
-    Value: !GetAtt EC2Instance2.PublicIp
+    Value: !GetAtt CassandraInstance.PublicIp
