@@ -17,15 +17,22 @@ const client = new cassandra.Client({
 });
 
 async function setup() {
-  await client.connect();
-  await client.execute(`
-    CREATE TABLE IF NOT EXISTS gestures (
-      id uuid PRIMARY KEY,
-      timestamp timestamp,
-      coordinates text
-    )
-  `);
-  console.log("Connected to Cassandra");
+  try {
+    await client.connect();
+    await client.execute(`
+        CREATE TABLE IF NOT EXISTS gestures (
+        id uuid PRIMARY KEY,
+        timestamp timestamp,
+        coordinates text
+      )`);
+    console.log("Connected to Cassandra");
+
+    const PORT = 3000;
+    app.listen(PORT, () => console.log(`Mongo API running on http://localhost:${PORT}`));
+  } catch (err) {
+    console.error("Failed to connect to MongoDB", err);
+    process.exit(1); // Exit so you can see the failure
+  }
 }
 
 app.post("/saveGesture", async (req, res) => {
@@ -43,5 +50,3 @@ app.post("/saveGesture", async (req, res) => {
 });
 
 setup();
-const PORT = 3000;
-app.listen(PORT, () => console.log(`Mongo API running on http://localhost:${PORT}`));
