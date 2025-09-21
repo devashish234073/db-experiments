@@ -1,0 +1,125 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Create 2 EC2 instances (t3.micro) for MongoDB vs Cassandra timeseries experiment
+
+Resources:
+  MyVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      EnableDnsHostnames: True
+
+  MyInternetGateway:
+    Type: AWS::EC2::InternetGateway
+
+  AttachGateway:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref MyVPC
+      InternetGatewayId: !Ref MyInternetGateway
+
+  MyPublicSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref MyVPC
+      CidrBlock: 10.0.0.0/24
+      MapPublicIpOnLaunch: True
+
+  MyRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref MyVPC
+
+  PublicRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref MyRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref MyInternetGateway
+
+  SubnetAssoc:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref MyPublicSubnet
+      RouteTableId: !Ref MyRouteTable
+
+  MySecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow SSH, HTTP, MongoDB, Cassandra
+      VpcId: !Ref MyVPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 3000
+          ToPort: 3000
+          CidrIp: 0.0.0.0/0
+
+  EC2Instance1:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: t3.micro
+      ImageId: ami-03f4878755434977f # Ubuntu 22.04 LTS in your region
+      SubnetId: !Ref MyPublicSubnet
+      SecurityGroupIds:
+        - !Ref MySecurityGroup
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          set -e
+          apt-get update
+          apt-get install -y software-properties-common gnupg apt-transport-https ca-certificates curl git nodejs npm
+          
+          # Install MongoDB
+          curl -fsSL https://pgp.mongodb.com/server-7.0.asc | gpg --dearmor -o /usr/share/keyrings/mongodb-server-7.0.gpg
+          echo "deb [ arch=amd64,arm64 signed-by=/usr/share/keyrings/mongodb-server-7.0.gpg ] https://repo.mongodb.org/apt/ubuntu jammy/mongodb-org/7.0 multiverse" > /etc/apt/sources.list.d/mongodb-org-7.0.list
+          apt-get update
+          apt-get install -y mongodb-org
+          systemctl enable --now mongod
+
+          # Clone repo and run MongoDB app
+          cd /home/ubuntu
+          git clone https://github.com/devashish234073/db-experiments.git
+          cd db-experiments/timeseries-mongodb-vs-cassandra
+          npm install
+          nohup node server-mongo.js > mongo-app.log 2>&1 &
+
+  EC2Instance2:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: t3.micro
+      ImageId: ami-03f4878755434977f # Ubuntu 22.04 LTS in your region
+      SubnetId: !Ref MyPublicSubnet
+      SecurityGroupIds:
+        - !Ref MySecurityGroup
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          set -e
+          apt-get update
+          apt-get install -y openjdk-11-jdk curl git nodejs npm
+
+          # Install Cassandra (latest 4.x from Apache repo)
+          echo "deb https://debian.cassandra.apache.org 41x main" | tee /etc/apt/sources.list.d/cassandra.list
+          curl https://downloads.apache.org/cassandra/KEYS | apt-key add -
+          apt-get update
+          apt-get install -y cassandra
+          systemctl enable --now cassandra
+
+          # Clone repo and run Cassandra app
+          cd /home/ubuntu
+          git clone https://github.com/devashish234073/db-experiments.git
+          cd db-experiments/timeseries-mongodb-vs-cassandra
+          npm install
+          nohup node server-cassandra.js > cassandra-app.log 2>&1 &
+
+Outputs:
+  MongoDBInstancePublicIP:
+    Description: Public IP of MongoDB Node.js App
+    Value: !GetAtt EC2Instance1.PublicIp
+
+  CassandraInstancePublicIP:
+    Description: Public IP of Cassandra Node.js App
+    Value: !GetAtt EC2Instance2.PublicIp
