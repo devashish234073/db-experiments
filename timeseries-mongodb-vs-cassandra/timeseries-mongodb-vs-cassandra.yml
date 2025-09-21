@@ -45,7 +45,7 @@ Resources:
   MySecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: Allow SSH, HTTP, MongoDB, Cassandra
+      GroupDescription: Allow SSH and Node.js apps
       VpcId: !Ref MyVPC
       SecurityGroupIngress:
         - IpProtocol: tcp
@@ -68,23 +68,21 @@ Resources:
       UserData:
         Fn::Base64: !Sub |
           #!/bin/bash
-          set -e
+          set -eux
           apt-get update
-          apt-get install -y software-properties-common gnupg apt-transport-https ca-certificates curl git nodejs npm
-          
-          # Install MongoDB
-          curl -fsSL https://pgp.mongodb.com/server-7.0.asc | gpg --dearmor -o /usr/share/keyrings/mongodb-server-7.0.gpg
-          echo "deb [ arch=amd64,arm64 signed-by=/usr/share/keyrings/mongodb-server-7.0.gpg ] https://repo.mongodb.org/apt/ubuntu jammy/mongodb-org/7.0 multiverse" > /etc/apt/sources.list.d/mongodb-org-7.0.list
-          apt-get update
-          apt-get install -y mongodb-org
-          systemctl enable --now mongod
+          apt-get install -y git nodejs npm mongodb
 
-          # Clone repo and run MongoDB app
-          cd /home/ubuntu
-          git clone https://github.com/devashish234073/db-experiments.git
-          cd db-experiments/timeseries-mongodb-vs-cassandra
-          npm install
-          nohup node server-mongo.js > mongo-app.log 2>&1 &
+          # Start MongoDB
+          systemctl enable --now mongodb
+
+          # Clone repo as ubuntu user
+          sudo -u ubuntu -H git clone https://github.com/devashish234073/db-experiments.git /home/ubuntu/db-experiments
+
+          cd /home/ubuntu/db-experiments/timeseries-mongodb-vs-cassandra
+          sudo -u ubuntu -H npm install
+
+          # Run Mongo server on port 3000
+          nohup sudo -u ubuntu -H node server-mongo.js > /home/ubuntu/mongo-app.log 2>&1 &
 
   CassandraInstance:
     Type: AWS::EC2::Instance
@@ -97,23 +95,25 @@ Resources:
       UserData:
         Fn::Base64: !Sub |
           #!/bin/bash
-          set -e
+          set -eux
           apt-get update
           apt-get install -y openjdk-11-jdk curl git nodejs npm
 
-          # Install Cassandra (latest 4.x from Apache repo)
+          # Install Cassandra
           echo "deb https://debian.cassandra.apache.org 41x main" | tee /etc/apt/sources.list.d/cassandra.list
           curl https://downloads.apache.org/cassandra/KEYS | apt-key add -
           apt-get update
           apt-get install -y cassandra
           systemctl enable --now cassandra
 
-          # Clone repo and run Cassandra app
-          cd /home/ubuntu
-          git clone https://github.com/devashish234073/db-experiments.git
-          cd db-experiments/timeseries-mongodb-vs-cassandra
-          npm install
-          nohup node server-cassandra.js > cassandra-app.log 2>&1 &
+          # Clone repo as ubuntu user
+          sudo -u ubuntu -H git clone https://github.com/devashish234073/db-experiments.git /home/ubuntu/db-experiments
+
+          cd /home/ubuntu/db-experiments/timeseries-mongodb-vs-cassandra
+          sudo -u ubuntu -H npm install
+
+          # Run Cassandra server on port 4000
+          nohup sudo -u ubuntu -H node server-cassandra.js > /home/ubuntu/cassandra-app.log 2>&1 &
 
 Outputs:
   MongoDBInstancePublicIP:
