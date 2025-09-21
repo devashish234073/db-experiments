@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Hand Tracking</title>
+    <style>
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 20px;
+            margin: 0;
+            min-height: 100vh;
+        }
+        .panel {
+            position: relative;
+            width: 640px;
+            height: 480px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        video, canvas, .three-wrap {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+    </style>
+</head>
+<body>
+    <!-- Left: webcam + mediapipe drawing -->
+    <div class="panel">
+        <div class="overlay-ui">MP view — webcam + detected hand</div>
+        <video id="input_video" autoplay playsinline muted style="display:none"></video>
+        <canvas id="mp-canvas"></canvas>
+    </div>
+
+    <!-- libs -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
+
+    <script>
+        const videoElem = document.getElementById('input_video');
+        const mpCanvas = document.getElementById('mp-canvas');
+        const mpCtx = mpCanvas.getContext('2d');
+
+        // Mediapipe Hands setup
+        const hands = new Hands({ locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}` });
+        hands.setOptions({
+            maxNumHands: 1,
+            modelComplexity: 1,
+            minDetectionConfidence: 0.7,
+            minTrackingConfidence: 0.6
+        });
+        hands.onResults(onResults);
+
+        async function startCamera() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+                videoElem.srcObject = stream;
+                await videoElem.play();
+                requestAnimationFrame(processVideo);
+            } catch (e) {
+                alert('Camera error: ' + e.message);
+                console.error(e);
+            }
+        }
+
+        async function processVideo() {
+            if (videoElem.videoWidth > 0) {
+                await hands.send({ image: videoElem });
+            }
+            requestAnimationFrame(processVideo);
+        }
+
+        function onResults(results) {
+            mpCanvas.width = results.image.width;
+            mpCanvas.height = results.image.height;
+            mpCtx.save();
+            mpCtx.clearRect(0, 0, mpCanvas.width, mpCanvas.height);
+            mpCtx.drawImage(results.image, 0, 0, mpCanvas.width, mpCanvas.height);
+            if (results.multiHandLandmarks) {
+                for (const landmarks of results.multiHandLandmarks) {
+                    drawConnectors(mpCtx, landmarks, HAND_CONNECTIONS, { color: '#00FF00', lineWidth: 2 });
+                    drawLandmarks(mpCtx, landmarks, { color: '#FF0000', lineWidth: 1 });
+                }
+                saveToDb(results);
+            }
+            mpCtx.restore();
+        }
+
+        function saveToDb(results) {
+            const coordinates = results.multiHandLandmarks.map(landmarks =>
+                landmarks.map(pt => ({ x: pt.x, y: pt.y, z: pt.z }))
+            );
+            fetch("/saveGesture", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ coordinates })
+            });
+        }
+
+        startCamera();
+    </script>
+</body>
+</html>

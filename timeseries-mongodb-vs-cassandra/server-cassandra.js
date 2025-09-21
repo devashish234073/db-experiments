@@ -7,6 +7,7 @@ const cassandra = require("cassandra-driver");
 const app = express();
 app.use(cors());
 app.use(bodyParser.json());
+app.use(express.static(path.join(__dirname, "public")));
 
 const client = new cassandra.Client({
   contactPoints: ["127.0.0.1"],

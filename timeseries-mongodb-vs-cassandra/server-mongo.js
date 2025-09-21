@@ -7,6 +7,7 @@ const { MongoClient } = require("mongodb");
 const app = express();
 app.use(cors());
 app.use(bodyParser.json());
+app.use(express.static(path.join(__dirname, "public")));
 
 const uri = "mongodb://localhost:27017";
 const client = new MongoClient(uri);
