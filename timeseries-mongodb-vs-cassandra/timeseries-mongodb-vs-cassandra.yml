@@ -65,6 +65,9 @@ Resources:
       SubnetId: !Ref MyPublicSubnet
       SecurityGroupIds:
         - !Ref MySecurityGroup
+      Tags:
+        - Key: Name
+          Value: MongoDbInstance
       UserData:
         Fn::Base64: !Sub |
           #!/bin/bash
@@ -92,6 +95,9 @@ Resources:
       SubnetId: !Ref MyPublicSubnet
       SecurityGroupIds:
         - !Ref MySecurityGroup
+      Tags:
+        - Key: Name
+          Value: CassandraInstance
       UserData:
         Fn::Base64: !Sub |
           #!/bin/bash
