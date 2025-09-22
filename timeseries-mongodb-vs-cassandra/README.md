@@ -5,7 +5,7 @@ This will create the two instances:
 
 Cassandra instance takes some more time to setup so wait for around 3-5 minute for the UI to be available , mongo will be setup withing 1 minute.
 
-Once both are setup, go to https://<publicIP>:3000 for each to show the hand tracking page , that sends the hand tracking coordinates to the corresponding database
+Once both are setup, go to https://[publicIP]:3000 for each to show the hand tracking page , that sends the hand tracking coordinates to the corresponding database
 
 After setup and doing some hand movement in from of cam, query the cassandradb from ec2 terminal by running:
 
