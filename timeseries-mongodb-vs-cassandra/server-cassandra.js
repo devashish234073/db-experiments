@@ -4,6 +4,8 @@ const bodyParser = require("body-parser");
 const cors = require("cors");
 const cassandra = require("cassandra-driver");
 const path = require("path");
+const https = require("https");
+const fs = require("fs"); 
 
 const app = express();
 app.use(cors());
@@ -27,8 +29,15 @@ async function setup() {
       )`);
     console.log("Connected to Cassandra");
 
+    const options = {
+      key: fs.readFileSync("/home/ubuntu/key.pem"),
+      cert: fs.readFileSync("/home/ubuntu/cert.pem")
+    };
+
     const PORT = 3000;
-    app.listen(PORT, () => console.log(`Mongo API running on http://localhost:${PORT}`));
+    https.createServer(options, app).listen(PORT, () => {
+      console.log(`Cassandra App running on https://localhost:${PORT}`);
+    });
   } catch (err) {
     console.error("Failed to connect to MongoDB", err);
     process.exit(1); // Exit so you can see the failure

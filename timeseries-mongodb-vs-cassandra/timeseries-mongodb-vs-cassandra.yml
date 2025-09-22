@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: Create 2 EC2 instances (t3.micro) for MongoDB vs Cassandra timeseries experiment
+Description: Create 2 EC2 instances (t3.small) for MongoDB vs Cassandra timeseries experiment
 
 Resources:
   MyVPC:
@@ -60,7 +60,7 @@ Resources:
   MongoDbInstance:
     Type: AWS::EC2::Instance
     Properties:
-      InstanceType: t3.micro
+      InstanceType: t3.small
       ImageId: ami-03f4878755434977f # Ubuntu 22.04 LTS in your region
       SubnetId: !Ref MyPublicSubnet
       SecurityGroupIds:
@@ -104,6 +104,14 @@ Resources:
 
           cd /home/ubuntu/db-experiments/timeseries-mongodb-vs-cassandra
           sudo -u ubuntu -H npm install
+          sudo -u ubuntu openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+            -keyout /home/ubuntu/key.pem \
+            -out /home/ubuntu/cert.pem \
+            -subj "/C=US/ST=State/L=City/O=Organization/CN=localhost"
+
+          # Set permissions
+          sudo chown ubuntu:ubuntu /home/ubuntu/key.pem /home/ubuntu/cert.pem
+          sudo chmod 600 /home/ubuntu/key.pem /home/ubuntu/cert.pem
 
           # Run Mongo server on port 3000
           nohup sudo -u ubuntu -H node server-mongo.js > /home/ubuntu/mongo-app.log 2>&1 &
@@ -111,7 +119,7 @@ Resources:
   CassandraInstance:
     Type: AWS::EC2::Instance
     Properties:
-      InstanceType: t3.micro
+      InstanceType: t3.medium
       ImageId: ami-03f4878755434977f # Ubuntu 22.04 LTS in your region
       SubnetId: !Ref MyPublicSubnet
       SecurityGroupIds:
@@ -148,6 +156,14 @@ Resources:
 
           cd /home/ubuntu/db-experiments/timeseries-mongodb-vs-cassandra
           sudo -u ubuntu -H npm install
+          sudo -u ubuntu openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+            -keyout /home/ubuntu/key.pem \
+            -out /home/ubuntu/cert.pem \
+            -subj "/C=US/ST=State/L=City/O=Organization/CN=localhost"
+
+          # Set permissions
+          sudo chown ubuntu:ubuntu /home/ubuntu/key.pem /home/ubuntu/cert.pem
+          sudo chmod 600 /home/ubuntu/key.pem /home/ubuntu/cert.pem
 
           # Run Cassandra server on port 4000
           nohup sudo -u ubuntu -H node server-cassandra.js > /home/ubuntu/cassandra-app.log 2>&1 &
