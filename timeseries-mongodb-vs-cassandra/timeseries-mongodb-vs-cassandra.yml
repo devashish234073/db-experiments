@@ -119,7 +119,7 @@ Resources:
   CassandraInstance:
     Type: AWS::EC2::Instance
     Properties:
-      InstanceType: t3.medium
+      InstanceType: t3.small
       ImageId: ami-03f4878755434977f # Ubuntu 22.04 LTS in your region
       SubnetId: !Ref MyPublicSubnet
       SecurityGroupIds:
@@ -150,6 +150,23 @@ Resources:
           apt-get update
           apt-get install -y cassandra
           systemctl enable --now cassandra
+
+          # Wait for Cassandra to start (up to 120 seconds)
+          echo "Waiting for Cassandra to start on port 9042..."
+          for i in {1..120}; do
+            if nc -z localhost 9042; then
+              echo "Cassandra is ready!"
+              break
+            fi
+            echo "Cassandra not ready yet... ($i/120)"
+            sleep 2
+          done
+
+          # If still not ready, exit with error
+          if ! nc -z localhost 9042; then
+            echo "ERROR: Cassandra did not start within 120 seconds. Aborting."
+            exit 1
+          fi
 
           # Clone repo as ubuntu user
           sudo -u ubuntu -H git clone https://github.com/devashish234073/db-experiments.git /home/ubuntu/db-experiments
