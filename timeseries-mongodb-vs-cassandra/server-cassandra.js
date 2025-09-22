@@ -20,7 +20,21 @@ const client = new cassandra.Client({
 
 async function setup() {
   try {
+    const client = new cassandra.Client({
+      contactPoints: ["127.0.0.1"],
+      localDataCenter: "datacenter1"
+      // Do NOT specify keyspace here yet
+    });
     await client.connect();
+
+    await client.execute(`
+      CREATE KEYSPACE IF NOT EXISTS handtracking 
+      WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1}
+    `);
+
+    // ✅ Use the keyspace
+    await client.execute('USE handtracking');
+
     await client.execute(`
         CREATE TABLE IF NOT EXISTS gestures (
         id uuid PRIMARY KEY,
@@ -39,7 +53,7 @@ async function setup() {
       console.log(`Cassandra App running on https://localhost:${PORT}`);
     });
   } catch (err) {
-    console.error("Failed to connect to MongoDB", err);
+    console.error("Failed to connect to CassandraDB", err);
     process.exit(1); // Exit so you can see the failure
   }
 }
