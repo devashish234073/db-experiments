@@ -1,0 +1,268 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Create EC2 instances for Cassandra, a 3-node MongoDB replica set, and a UI instance for timeseries experiment
+
+Parameters:
+  KeyName:
+    Type: AWS::EC2::KeyPair::KeyName
+    Description: Name of an existing EC2 KeyPair to enable SSH access to the instances
+
+Resources:
+  MyVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: MyVPC
+
+  MyInternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: MyInternetGateway
+
+  AttachGateway:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref MyVPC
+      InternetGatewayId: !Ref MyInternetGateway
+
+  MyPublicSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref MyVPC
+      CidrBlock: 10.0.0.0/24
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: PublicSubnet
+
+  MyRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref MyVPC
+      Tags:
+        - Key: Name
+          Value: PublicRouteTable
+
+  PublicRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref MyRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref MyInternetGateway
+
+  SubnetAssoc:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref MyPublicSubnet
+      RouteTableId: !Ref MyRouteTable
+
+  MySecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow SSH and UI; MongoDB accessible only within subnet
+      VpcId: !Ref MyVPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 3000
+          ToPort: 3000
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 27017
+          ToPort: 27017
+          CidrIp: 10.0.0.0/16  # Allow Mongo traffic only inside VPC
+      Tags:
+        - Key: Name
+          Value: MySecurityGroup
+
+  # --- MongoDB replica nodes ---
+  MongoNode1:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: t3.small
+      ImageId: ami-03f4878755434977f
+      KeyName: !Ref KeyName
+      SubnetId: !Ref MyPublicSubnet
+      SecurityGroupIds:
+        - !Ref MySecurityGroup
+      PrivateIpAddress: 10.0.0.10
+      Tags:
+        - Key: Name
+          Value: mongo-node-1
+      UserData:
+        Fn::Base64: |
+          #!/bin/bash
+          set -eux
+          export DEBIAN_FRONTEND=noninteractive
+          apt-get update
+          apt-get install -y gnupg curl ca-certificates lsb-release netcat
+          curl -fsSL https://www.mongodb.org/static/pgp/server-6.0.asc | gpg --dearmor -o /usr/share/keyrings/mongodb-server-6.0.gpg
+          echo "deb [ arch=amd64,arm64 signed-by=/usr/share/keyrings/mongodb-server-6.0.gpg ] https://repo.mongodb.org/apt/ubuntu jammy/mongodb-org/6.0 multiverse" | tee /etc/apt/sources.list.d/mongodb-org-6.0.list
+          apt-get update
+          apt-get install -y mongodb-org
+
+          # configure replication
+          sed -i '/^  bindIp:/d' /etc/mongod.conf || true
+          cat >> /etc/mongod.conf <<'MONGO_CONF'
+          net:
+            bindIp: 0.0.0.0
+          replication:
+            replSetName: "rs0"
+          MONGO_CONF
+
+          systemctl enable --now mongod
+
+          # wait for mongod
+          for i in {1..60}; do
+            if nc -z localhost 27017; then
+              echo "mongod local is up"
+              break
+            fi
+            sleep 2
+          done
+
+          # wait for other nodes
+          for i in {1..120}; do
+            if nc -z 10.0.0.11 27017 && nc -z 10.0.0.12 27017; then
+              echo "Other nodes reachable"
+              break
+            fi
+            sleep 2
+          done
+
+          # initiate replica set
+          mongo --eval 'rs.initiate({_id: "rs0", members: [
+            {_id:0, host: "10.0.0.10:27017"},
+            {_id:1, host: "10.0.0.11:27017"},
+            {_id:2, host: "10.0.0.12:27017"}]})' || true
+
+  MongoNode2:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: t3.small
+      ImageId: ami-03f4878755434977f
+      KeyName: !Ref KeyName
+      SubnetId: !Ref MyPublicSubnet
+      SecurityGroupIds:
+        - !Ref MySecurityGroup
+      PrivateIpAddress: 10.0.0.11
+      Tags:
+        - Key: Name
+          Value: mongo-node-2
+      UserData:
+        Fn::Base64: |
+          #!/bin/bash
+          set -eux
+          export DEBIAN_FRONTEND=noninteractive
+          apt-get update
+          apt-get install -y gnupg curl ca-certificates lsb-release netcat
+          curl -fsSL https://www.mongodb.org/static/pgp/server-6.0.asc | gpg --dearmor -o /usr/share/keyrings/mongodb-server-6.0.gpg
+          echo "deb [ arch=amd64,arm64 signed-by=/usr/share/keyrings/mongodb-server-6.0.gpg ] https://repo.mongodb.org/apt/ubuntu jammy/mongodb-org/6.0 multiverse" | tee /etc/apt/sources.list.d/mongodb-org-6.0.list
+          apt-get update
+          apt-get install -y mongodb-org
+          sed -i '/^  bindIp:/d' /etc/mongod.conf || true
+          cat >> /etc/mongod.conf <<'MONGO_CONF'
+          net:
+            bindIp: 0.0.0.0
+          replication:
+            replSetName: "rs0"
+          MONGO_CONF
+          systemctl enable --now mongod
+
+  MongoNode3:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: t3.small
+      ImageId: ami-03f4878755434977f
+      KeyName: !Ref KeyName
+      SubnetId: !Ref MyPublicSubnet
+      SecurityGroupIds:
+        - !Ref MySecurityGroup
+      PrivateIpAddress: 10.0.0.12
+      Tags:
+        - Key: Name
+          Value: mongo-node-3
+      UserData:
+        Fn::Base64: |
+          #!/bin/bash
+          set -eux
+          export DEBIAN_FRONTEND=noninteractive
+          apt-get update
+          apt-get install -y gnupg curl ca-certificates lsb-release netcat
+          curl -fsSL https://www.mongodb.org/static/pgp/server-6.0.asc | gpg --dearmor -o /usr/share/keyrings/mongodb-server-6.0.gpg
+          echo "deb [ arch=amd64,arm64 signed-by=/usr/share/keyrings/mongodb-server-6.0.gpg ] https://repo.mongodb.org/apt/ubuntu jammy/mongodb-org/6.0 multiverse" | tee /etc/apt/sources.list.d/mongodb-org-6.0.list
+          apt-get update
+          apt-get install -y mongodb-org
+          sed -i '/^  bindIp:/d' /etc/mongod.conf || true
+          cat >> /etc/mongod.conf <<'MONGO_CONF'
+          net:
+            bindIp: 0.0.0.0
+          replication:
+            replSetName: "rs0"
+          MONGO_CONF
+          systemctl enable --now mongod
+
+  # --- UI instance to write/read from the replica set ---
+  UIInstance:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: t3.small
+      ImageId: ami-03f4878755434977f
+      KeyName: !Ref KeyName
+      SubnetId: !Ref MyPublicSubnet
+      SecurityGroupIds:
+        - !Ref MySecurityGroup
+      Tags:
+        - Key: Name
+          Value: UIInstance
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          set -eux
+          apt-get update
+          apt-get install -y git curl build-essential netcat
+          sudo apt remove -y nodejs npm || true
+          curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+          sudo apt-get install -y nodejs
+          node --version || true
+          npm --version || true
+
+          # Clone the repo and install
+          sudo -u ubuntu -H git clone https://github.com/devashish234073/db-experiments.git /home/ubuntu/db-experiments || true
+          cd /home/ubuntu/db-experiments/mongodb-replica-demos || true
+          sudo -u ubuntu -H npm install || true
+
+          # Create env var listing replica members for the UI server
+          echo "MONGO_RS_MEMBERS=10.0.0.10:27017,10.0.0.11:27017,10.0.0.12:27017" >> /etc/environment
+          # Generate self-signed certs used by the sample app
+          sudo -u ubuntu openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+            -keyout /home/ubuntu/key.pem -out /home/ubuntu/cert.pem -subj "/C=US/ST=State/L=City/O=Organization/CN=localhost" || true
+          sudo chown ubuntu:ubuntu /home/ubuntu/key.pem /home/ubuntu/cert.pem || true
+          sudo chmod 600 /home/ubuntu/key.pem /home/ubuntu/cert.pem || true
+
+          # Start the UI app (adjust the server script name if needed)
+          nohup sudo -u ubuntu -H env $(cat /etc/environment) node ui-server.js > /home/ubuntu/ui-app.log 2>&1 &
+
+Outputs:
+  UIInstancePublicIP:
+    Description: Public IP of UI app
+    Value: !GetAtt UIInstance.PublicIp
+
+  MongoNode1PrivateIp:
+    Description: Private IP of Mongo node 1
+    Value: !GetAtt MongoNode1.PrivateIp
+
+  MongoNode2PrivateIp:
+    Description: Private IP of Mongo node 2
+    Value: !GetAtt MongoNode2.PrivateIp
+
+  MongoNode3PrivateIp:
+    Description: Private IP of Mongo node 3
+    Value: !GetAtt MongoNode3.PrivateIp
