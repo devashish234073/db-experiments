@@ -27,16 +27,28 @@ app.get("/", (req, res) => {
       <input name="message" placeholder="Message" required />
       <button type="submit">Insert</button>
     </form>
-    <h3>Read from specific replica:</h3>
-    ${members
-      .map(
-        (m, i) =>
-          `<form method="GET" action="/read">
-             <input type="hidden" name="member" value="${m}" />
-             <button type="submit">Read from Node ${i + 1} (${m})</button>
-           </form>`
-      )
-      .join("<br/>")}
+    <h3>Node Status (auto-refresh every 5s):</h3>
+    <div id="node-status-0">Loading Node 1...</div>
+    <div id="node-status-1">Loading Node 2...</div>
+    <div id="node-status-2">Loading Node 3...</div>
+    <script>
+      const members = ${JSON.stringify(members)};
+      function fetchNode(idx) {
+        fetch('/read?member=' + '${encodeURIComponent(members[idx])}')
+          .then(r => r.text())
+          .then(html => {
+            document.getElementById('node-status-' + idx).innerHTML = html;
+          })
+          .catch(e => {
+            document.getElementById('node-status-' + idx).innerHTML = '<pre>Error: ' + '${e}' + '</pre>';
+          });
+      }
+      function refreshAll() {
+        for (let i = 0; i < members.length; ++i) fetchNode(i);
+      }
+      refreshAll();
+      setInterval(refreshAll, 5000);
+    </script>
     <br/>
     <a href="/status">View Replica Set Status</a>
   `);
