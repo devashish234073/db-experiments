@@ -21,40 +21,69 @@ async function getClient(member) {
 
 // Home page with form + read options
 app.get("/", (req, res) => {
+  // Generate loading divs and labels with IPs on the server side
+  const nodeDivs = members.map((member, i) => `
+    <div>
+      <strong>Node ${i + 1} (${member})</strong>
+      <div id="node-status-${i}">Loading...</div>
+    </div>
+  `).join('\n');
+
   res.send(`
-    <h1>MongoDB Replica Set UI</h1>
-    <form method="POST" action="/write">
-      <input name="message" placeholder="Message" required />
-      <button type="submit">Insert</button>
-    </form>
-    <h3>Node Status (auto-refresh every 5s):</h3>
-    <div id="node-status-0">Loading Node 1...</div>
-    <div id="node-status-1">Loading Node 2...</div>
-    <div id="node-status-2">Loading Node 3...</div>
-    <script>
-      const members = ${JSON.stringify(members)};
-      function fetchNode(idx) {
-        fetch('/read?member=' + '${encodeURIComponent(members[idx])}')
-          .then(r => r.text())
-          .then(html => {
-            document.getElementById('node-status-' + idx).innerHTML = html;
-          })
-          .catch(e => {
-            document.getElementById('node-status-' + idx).innerHTML = '<pre>Error: ' + '${e}' + '</pre>';
-          });
-      }
-      function refreshAll() {
-        for (let i = 0; i < members.length; ++i) fetchNode(i);
-      }
-      refreshAll();
-      setInterval(refreshAll, 5000);
-    </script>
-    <br/>
-    <a href="/status">View Replica Set Status</a>
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>MongoDB Replica Set UI</title>
+      <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .node { margin-bottom: 20px; padding: 10px; border: 1px solid #ccc; border-radius: 4px; }
+        pre { background: #f5f5f5; padding: 8px; overflow: auto; }
+      </style>
+    </head>
+    <body>
+      <h1>MongoDB Replica Set UI</h1>
+      
+      <form method="POST" action="/write">
+        <input name="message" placeholder="Message" required style="width: 300px; padding: 5px;" />
+        <button type="submit">Insert Document</button>
+      </form>
+
+      <h3>Node Status (auto-refresh every 5s):</h3>
+      ${nodeDivs}
+
+      <br/>
+      <a href="/status">View Replica Set Status</a>
+
+      <script>
+        const members = ${JSON.stringify(members)};
+        
+        function fetchNode(idx) {
+          fetch('/read?member=' + encodeURIComponent(members[idx]))
+            .then(r => r.text())
+            .then(html => {
+              document.getElementById('node-status-' + idx).innerHTML = html;
+            })
+            .catch(e => {
+              document.getElementById('node-status-' + idx).innerHTML = '<pre style="color:red">Error: ' + e.message + '</pre>';
+            });
+        }
+
+        function refreshAll() {
+          for (let i = 0; i < members.length; i++) {
+            fetchNode(i);
+          }
+        }
+
+        // Initial load + auto-refresh
+        refreshAll();
+        setInterval(refreshAll, 5000);
+      </script>
+    </body>
+    </html>
   `);
 });
 
-// Insert document into PRIMARY (first member in list assumed primary)
+// Insert document into PRIMARY (assumes members[0] is primary)
 app.post("/write", async (req, res) => {
   try {
     const client = await getClient(members[0]);
@@ -68,7 +97,7 @@ app.post("/write", async (req, res) => {
     await client.close();
     res.redirect("/");
   } catch (err) {
-    res.send(`<pre>Write failed:\n${err}</pre>`);
+    res.status(500).send(`<pre style="color:red">Write failed:\n${err.message}</pre><a href="/">Back</a>`);
   }
 });
 
@@ -87,17 +116,20 @@ app.get("/read", async (req, res) => {
       .toArray();
     await client.close();
 
-    res.send(`
-      <h2>Last 10 docs from ${member}</h2>
-      <pre>${JSON.stringify(docs, null, 2)}</pre>
-      <a href="/">Back</a>
-    `);
+    if (docs.length === 0) {
+      res.send('<em>No documents found</em>');
+    } else {
+      res.send(`
+        <pre>${JSON.stringify(docs, null, 2)}</pre>
+        <small>Last updated: ${new Date().toISOString()}</small>
+      `);
+    }
   } catch (err) {
-    res.send(`<pre>Read failed from ${member}:\n${err}</pre>`);
+    res.send(`<pre style="color:red">Read failed from ${member}:\n${err.message}</pre>`);
   }
 });
 
-// Show rs.status() from first member
+// Show replica set status
 app.get("/status", async (req, res) => {
   try {
     const client = await getClient(members[0]);
@@ -111,7 +143,7 @@ app.get("/status", async (req, res) => {
       <a href="/">Back</a>
     `);
   } catch (err) {
-    res.send(`<pre>Status fetch failed:\n${err}</pre>`);
+    res.send(`<pre style="color:red">Status fetch failed:\n${err.message}</pre><a href="/">Back</a>`);
   }
 });
 
