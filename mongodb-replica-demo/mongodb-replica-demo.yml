@@ -236,7 +236,7 @@ Resources:
 
           # Clone the repo and install
           sudo -u ubuntu -H git clone https://github.com/devashish234073/db-experiments.git /home/ubuntu/db-experiments || true
-          cd /home/ubuntu/db-experiments/mongodb-replica-demos || true
+          cd /home/ubuntu/db-experiments/mongodb-replica-demo || true
           sudo -u ubuntu -H npm install || true
 
           # Create env var listing replica members for the UI server
