@@ -1,0 +1,289 @@
+package com;
+
+import java.io.IOException;
+import java.net.InetAddress;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Iterator;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+import org.apache.cassandra.cql3.QueryProcessor;
+import org.apache.cassandra.cql3.UntypedResultSet;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.cql3.CQLStatement;
+import org.apache.cassandra.cql3.QueryOptions;
+
+import org.apache.cassandra.service.ClientState;
+import org.apache.cassandra.service.QueryState;
+import org.apache.cassandra.transport.messages.ResultMessage;
+import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.exceptions.RequestExecutionException;
+import org.apache.cassandra.exceptions.RequestValidationException;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+
+public class JsonCqlQuery {
+
+    /*static {
+        // Initialize Cassandra in client mode (no YAML, no daemon)
+        org.apache.cassandra.config.DatabaseDescriptor.clientInitialization();
+
+        // Set broadcast address (required for some internal metadata)
+        try {
+            org.apache.cassandra.utils.FBUtilities.setBroadcastInetAddress(
+                    java.net.InetAddress.getByName("127.0.0.1"));
+        } catch (Exception e) {
+            System.out.println("Failed to set broadcast address" + e.getMessage());
+        }
+    }*/
+
+    static {
+        System.setProperty("cassandra.config", "file:///");
+        DatabaseDescriptor.clientInitialization();
+        try {
+            org.apache.cassandra.utils.FBUtilities.setBroadcastInetAddress(
+                    java.net.InetAddress.getByName("127.0.0.1"));
+        } catch (Exception e) {
+            System.out.println("Failed to set broadcast address" + e.getMessage());
+        }
+    }
+
+    private static org.apache.cassandra.config.Config createMinimalConfig() {
+        try {
+            org.apache.cassandra.config.Config config = new org.apache.cassandra.config.Config();
+
+            String tmpDir = System.getProperty("java.io.tmpdir");
+
+            // Set partitioner (may be protected/private)
+            java.lang.reflect.Field partitionerField = config.getClass().getDeclaredField("partitioner");
+            partitionerField.setAccessible(true);
+            partitionerField.set(config, "org.apache.cassandra.dht.Murmur3Partitioner");
+
+            // Set data_file_directories
+            java.lang.reflect.Field dataDirsField = config.getClass().getDeclaredField("data_file_directories");
+            dataDirsField.setAccessible(true);
+            dataDirsField.set(config, new String[] { tmpDir });
+
+            // Set local_system_data_file_directory (the one causing the crash)
+            java.lang.reflect.Field localSystemDirField = config.getClass()
+                    .getDeclaredField("local_system_data_file_directory");
+            localSystemDirField.setAccessible(true);
+            localSystemDirField.set(config, tmpDir);
+
+            // Optional: set commitlog and saved_caches if needed
+            try {
+                java.lang.reflect.Field commitlogField = config.getClass().getDeclaredField("commitlog_directory");
+                commitlogField.setAccessible(true);
+                commitlogField.set(config, tmpDir);
+            } catch (NoSuchFieldException e) {
+                // Ignore if field doesn't exist
+            }
+
+            try {
+                java.lang.reflect.Field savedCachesField = config.getClass().getDeclaredField("saved_caches_directory");
+                savedCachesField.setAccessible(true);
+                savedCachesField.set(config, tmpDir);
+            } catch (NoSuchFieldException e) {
+                // Ignore
+            }
+
+            return config;
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to create minimal Config", e);
+        }
+    }
+
+    public static String queryJson(String jsonInput, String cqlQuery)
+            throws IOException, RequestValidationException, RequestExecutionException {
+        ObjectMapper mapper = new ObjectMapper();
+        JsonNode jsonRoot = mapper.readTree(jsonInput);
+
+        if (!jsonRoot.isArray()) {
+            throw new IllegalArgumentException("Input JSON must be an array of objects");
+        }
+
+        ArrayNode jsonArray = (ArrayNode) jsonRoot;
+        if (jsonArray.isEmpty()) {
+            return "[]";
+        }
+
+        // Infer columns from first object
+        Set<String> columns = new LinkedHashSet<>();
+        Iterator<Map.Entry<String, JsonNode>> fields = jsonArray.get(0).fields();
+        while (fields.hasNext()) {
+            Map.Entry<String, JsonNode> field = fields.next();
+            columns.add(field.getKey());
+        }
+
+        String keyspaceName = "test_ks";
+        String tableName = "test_table";
+
+        // ✅ Create keyspace using CQL
+        executeCql("CREATE KEYSPACE IF NOT EXISTS " + keyspaceName +
+                " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1};");
+
+        // Build table schema (all columns as text, first column as partition key)
+        List<String> columnList = new ArrayList<>(columns);
+        StringBuilder createTableCql = new StringBuilder(
+                "CREATE TABLE IF NOT EXISTS " + keyspaceName + "." + tableName + " (");
+        for (int i = 0; i < columnList.size(); i++) {
+            String col = columnList.get(i);
+            if (i == 0) {
+                createTableCql.append(col).append(" text PRIMARY KEY");
+            } else {
+                createTableCql.append(", ").append(col).append(" text");
+            }
+        }
+        createTableCql.append(");");
+
+        executeCql(createTableCql.toString());
+
+        // Insert data
+        /*for (JsonNode row : jsonArray) {
+            ObjectNode obj = (ObjectNode) row;
+            // Build INSERT statement
+            StringBuilder insert = new StringBuilder("INSERT INTO " + keyspaceName + "." + tableName + " (");
+            StringBuilder values = new StringBuilder(" VALUES (");
+
+            boolean first = true;
+            for (String col : columnList) {
+                if (!first) {
+                    insert.append(", ");
+                    values.append(", ");
+                }
+                insert.append(col);
+                String val = obj.has(col) ? obj.get(col).asText() : "";
+                values.append("'").append(val.replace("'", "''")).append("'");
+                first = false;
+            }
+            insert.append(")").append(values).append(");"); // ← Semicolon HERE, outside the VALUES parentheses
+            executeCql(insert.toString());
+        }*/
+
+        // Execute user query
+        //UntypedResultSet result = executeCql(cqlQuery);
+
+        // Convert result to JSON
+        ArrayNode output = mapper.createArrayNode();
+        /*for (UntypedResultSet.Row row : result) {
+            ObjectNode obj = mapper.createObjectNode();
+            for (String col : columnList) {
+                if (row.has(col)) {
+                    obj.put(col, row.getString(col));
+                }
+            }
+            output.add(obj);
+        }*/
+
+        return mapper.writeValueAsString(output);
+    }
+
+    /*
+     * private static UntypedResultSet executeCql(String cql)
+     * throws RequestValidationException, RequestExecutionException {
+     * ClientState clientState = ClientState.forInternalCalls();
+     * QueryState queryState = new QueryState(clientState);
+     * return QueryProcessor.executeInternal(queryState, cql);
+     * }
+     */
+
+    /*
+     * private static UntypedResultSet executeCql(String cql)
+     * throws RequestValidationException, RequestExecutionException {
+     * return QueryProcessor.executeInternal(cql);
+     * }
+     */
+
+    /*
+     * private static UntypedResultSet executeCql(String cql)
+     * throws RequestValidationException, RequestExecutionException {
+     * return QueryProcessor.executeInternal(cql);
+     * }
+     */
+
+    private static UntypedResultSet executeCql(String cql)
+            throws RequestValidationException, RequestExecutionException {
+        return QueryProcessor.executeInternal(cql);
+    }
+    /*
+     * private static UntypedResultSet executeCql(String cql)
+     * throws RequestValidationException, RequestExecutionException {
+     * try {
+     * // Get the private method: executeInternal(QueryState, String, QueryOptions)
+     * java.lang.reflect.Method method = QueryProcessor.class
+     * .getDeclaredMethod("executeInternal",
+     * org.apache.cassandra.service.QueryState.class,
+     * String.class,
+     * org.apache.cassandra.cql3.QueryOptions.class);
+     * method.setAccessible(true);
+     * 
+     * // Create minimal QueryState
+     * org.apache.cassandra.service.ClientState clientState =
+     * org.apache.cassandra.service.ClientState
+     * .forInternalCalls();
+     * clientState.setKeyspace("test_ks");
+     * 
+     * org.apache.cassandra.service.QueryState queryState = new
+     * org.apache.cassandra.service.QueryState(
+     * clientState);
+     * 
+     * // Call it
+     * return (UntypedResultSet) method.invoke(null, queryState, cql,
+     * org.apache.cassandra.cql3.QueryOptions.DEFAULT);
+     * 
+     * } catch (Exception e) {
+     * if (e instanceof RequestValidationException)
+     * throw (RequestValidationException) e;
+     * if (e instanceof RequestExecutionException)
+     * throw (RequestExecutionException) e;
+     * throw new RuntimeException("Failed to execute CQL: " + cql, e);
+     * }
+     * }
+     */
+
+    /*
+     * private static UntypedResultSet executeCql(String cql)
+     * throws RequestValidationException, RequestExecutionException {
+     * ClientState clientState = ClientState.forInternalCalls();
+     * 
+     * // ✅ Set keyspace if the query is DML and uses test_ks
+     * if (cql.trim().toUpperCase().startsWith("INSERT") ||
+     * cql.trim().toUpperCase().startsWith("UPDATE") ||
+     * cql.trim().toUpperCase().startsWith("DELETE")) {
+     * clientState.setKeyspace("test_ks");
+     * }
+     * 
+     * QueryState queryState = new QueryState(clientState);
+     * 
+     * CQLStatement.Raw raw = QueryProcessor.parseStatement(cql);
+     * CQLStatement stmt = raw.prepare(clientState);
+     * 
+     * ResultMessage result = stmt.executeLocally(queryState, QueryOptions.DEFAULT);
+     * 
+     * if (result instanceof ResultMessage.Rows) {
+     * return UntypedResultSet.create(((ResultMessage.Rows) result).result);
+     * } else {
+     * return UntypedResultSet.create(Collections.emptyList());
+     * }
+     * }
+     */
+
+    // Demo main
+    public static void main(String[] args) throws Exception {
+        String json = "[{\"id\": \"1\", \"name\": \"Alice\", \"city\": \"Paris\"}, " +
+                "{\"id\": \"2\", \"name\": \"Bob\", \"city\": \"London\"}, " +
+                "{\"id\": \"3\", \"name\": \"Charlie\", \"city\": \"Berlin\"}]";
+
+        String query = "SELECT name, city FROM test_ks.test_table WHERE id = '2';";
+
+        String result = queryJson(json, query);
+        System.out.println(result);
+        // Output: [{"name":"Bob","city":"London"}]
+    }
+}
