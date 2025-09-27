@@ -115,12 +115,19 @@ app.get("/read", async (req, res) => {
       .sort({ ts: -1 })
       .limit(10)
       .toArray();
+    const isMasterResult = await client.db().admin().command({ isMaster: 1 });
+    const isPrimary = isMasterResult.ismaster; // true or false
     await client.close();
 
+    const statusBadge = isPrimary
+      ? '<span style="background:green;color:white;padding:2px 6px;border-radius:4px">PRIMARY</span>'
+      : '<span style="background:orange;color:white;padding:2px 6px;border-radius:4px">SECONDARY</span>';
+
     if (docs.length === 0) {
-      res.send('<em>No documents found</em>');
+      res.send(`<div>${statusBadge}<em>No documents found</em></div>`);
     } else {
       res.send(`
+        <div>${statusBadge}</div>
         <pre>${JSON.stringify(docs, null, 2)}</pre>
         <small>Last updated: ${new Date().toISOString()}</small>
       `);
