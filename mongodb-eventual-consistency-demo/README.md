@@ -32,4 +32,9 @@ And this is after 2nd node is back:
 
 <img width="1582" height="805" alt="image" src="https://github.com/user-attachments/assets/7b4f4755-c033-49e8-8aac-b40d4ba45ccd" />
 
+Added a label showing which node is primary and which is secondary , thus one more experiment can be done here by rebooting the primary node to see a new primary being elected
+
+<img width="1919" height="880" alt="image" src="https://github.com/user-attachments/assets/20a6a953-44ba-4814-baf0-00c3d8e012a5" />
+
+
 
