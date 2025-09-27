@@ -36,6 +36,7 @@ app.get("/", (req, res) => {
       <title>MongoDB Replica Set UI</title>
       <style>
         body { font-family: Arial, sans-serif; margin: 20px; }
+        .nodes { display: flex; gap: 20px; align-items: flex-start; }
         .node { margin-bottom: 20px; padding: 10px; border: 1px solid #ccc; border-radius: 4px; }
         pre { background: #f5f5f5; padding: 8px; overflow: auto; }
       </style>
@@ -49,7 +50,7 @@ app.get("/", (req, res) => {
       </form>
 
       <h3>Node Status (auto-refresh every 5s):</h3>
-      ${nodeDivs}
+      <div class="nodes">${nodeDivs}</div>
 
       <br/>
       <a href="/status">View Replica Set Status</a>
