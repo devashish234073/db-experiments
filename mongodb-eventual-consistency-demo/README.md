@@ -17,5 +17,3 @@ for (let i = 0; i < cfg.members.length; i++) {
 
 rs.reconfig(cfg, {force: true})
 ```
-
-The cloudformation template con be found here: https://github.com /devashish234073/db-experiments/tree/main/mongodb-eventual-consistency-demo [remove the space between .com and /d]
