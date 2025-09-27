@@ -17,3 +17,19 @@ for (let i = 0; i < cfg.members.length; i++) {
 
 rs.reconfig(cfg, {force: true})
 ```
+
+The UI ec2 can be launched using its public IP at http://<publicip>:3000
+
+it looks like this, here you can see I inserted text "time" and it appears in just the 1st node third node has it recive it after a delay and 2nd node is down at this point:
+
+<img width="1572" height="879" alt="image" src="https://github.com/user-attachments/assets/9660bcd4-4f44-4b9f-9e60-8359cafdff9f" />
+
+This is after 3rd node recived the update:
+
+<img width="1578" height="836" alt="image" src="https://github.com/user-attachments/assets/259f07fc-289e-4550-a662-61aae2fdac5d" />
+
+And this is after 2nd node is back:
+
+<img width="1582" height="805" alt="image" src="https://github.com/user-attachments/assets/7b4f4755-c033-49e8-8aac-b40d4ba45ccd" />
+
+
