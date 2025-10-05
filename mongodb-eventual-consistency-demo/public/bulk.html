@@ -37,7 +37,7 @@
     <div id="progressBar"><div id="progressFill"></div></div>
   </div>
 
-  <div id="searchContainer" style="display:none; margin-top:20px;">
+  <div id="searchContainer" style="margin-top:20px;">
     <h3>Search DB</h3>
     <input id="searchKey" placeholder="Enter attribute key (e.g. attr1)" />
     <input id="searchValue" placeholder="Enter value" />
@@ -70,7 +70,7 @@
       progressText.innerText = "✅ Bulk write completed!";
       await new Promise(r => setTimeout(r, 1000));
       overlay.style.display = "none";
-      document.getElementById("searchContainer").style.display = "block";
+      //document.getElementById("searchContainer").style.display = "block";
     };
 
     document.getElementById("searchBtn").onclick = async () => {
