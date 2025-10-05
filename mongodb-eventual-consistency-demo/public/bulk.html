@@ -63,10 +63,10 @@
       progressFill.style.width = "0%";
       progressText.innerText = "Starting bulk write...";
 
-      const stepCount = 10;
+      const stepCount = parseInt(total/100000);
       for (let step = 1; step <= stepCount; step++) {
         progressText.innerText = `Writing step ${step} of ${stepCount}...`;
-        const res = await fetch(`/bulkWriteStep?total=${total}&step=${step}`);
+        const res = await fetch(`/bulkWriteStep?total=${total}&step=${step}&stepCount=${stepCount}`);
         const data = await res.json();
 
         progressText.innerText = data.message;
