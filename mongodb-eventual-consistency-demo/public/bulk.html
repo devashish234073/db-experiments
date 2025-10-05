@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>MongoDB Replica Set UI</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    .nodes { display: flex; gap: 20px; align-items: flex-start; }
+    .overlay {
+      position: fixed; top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: rgba(0,0,0,0.8);
+      color: white; font-size: 20px;
+      display: flex; align-items: center; justify-content: center;
+      z-index: 9999; flex-direction: column;
+    }
+    #progressBar {
+      width: 60%; height: 20px;
+      background: #444; border-radius: 10px; margin-top: 10px;
+    }
+    #progressFill {
+      height: 100%; width: 0%; background: limegreen; border-radius: 10px;
+    }
+    .node { margin-bottom: 20px; padding: 10px; border: 1px solid #ccc; border-radius: 4px; }
+    pre { background: #f5f5f5; padding: 8px; overflow: auto; }
+  </style>
+</head>
+<body>
+  <a href="/">Home</a><br>
+  <label>Bulk Insert Count:</label>
+  <select id="recordCount">
+    Options will be injected by server
+  </select>
+  <button id="startBulk">Start Bulk Write</button>
+
+  <div id="overlay" class="overlay" style="display:none;">
+    <div id="progressText">Starting write...</div>
+    <div id="progressBar"><div id="progressFill"></div></div>
+  </div>
+
+  <div id="searchContainer" style="display:none; margin-top:20px;">
+    <h3>Search DB</h3>
+    <input id="searchKey" placeholder="Enter attribute key (e.g. attr1)" />
+    <input id="searchValue" placeholder="Enter value" />
+    <button id="searchBtn">Search</button>
+    <pre id="searchResult"></pre>
+  </div>
+  <script>
+    document.getElementById("startBulk").onclick = async () => {
+      const total = parseInt(document.getElementById("recordCount").value);
+      const overlay = document.getElementById("overlay");
+      const progressText = document.getElementById("progressText");
+      const progressFill = document.getElementById("progressFill");
+
+      overlay.style.display = "flex";
+      progressFill.style.width = "0%";
+      progressText.innerText = "Starting bulk write...";
+
+      const stepCount = 10;
+      for (let step = 1; step <= stepCount; step++) {
+        progressText.innerText = `Writing step ${step} of ${stepCount}...`;
+        const res = await fetch(`/bulkWriteStep?total=${total}&step=${step}`);
+        const data = await res.json();
+
+        progressText.innerText = data.message;
+        progressFill.style.width = data.percent + "%";
+
+        if (data.done) break;
+      }
+
+      progressText.innerText = "✅ Bulk write completed!";
+      await new Promise(r => setTimeout(r, 1000));
+      overlay.style.display = "none";
+      document.getElementById("searchContainer").style.display = "block";
+    };
+
+    document.getElementById("searchBtn").onclick = async () => {
+      const key = document.getElementById("searchKey").value;
+      const value = document.getElementById("searchValue").value;
+      const res = await fetch("/search?key=" + encodeURIComponent(key) + "&value=" + encodeURIComponent(value));
+      const text = await res.text();
+      document.getElementById("searchResult").textContent = text;
+    };
+  </script>
+</body>
+</html>
