@@ -121,23 +121,33 @@ app.get("/", (req, res) => {
         setInterval(refreshAll, 5000);
 
         document.getElementById("startBulk").onclick = async () => {
-          const count = document.getElementById("recordCount").value;
-          const overlay = document.getElementById("overlay");
-          overlay.style.display = "flex";
-          document.getElementById("progressText").innerText = "Starting bulk write...";
+        const total = parseInt(document.getElementById("recordCount").value);
+        const overlay = document.getElementById("overlay");
+        const progressText = document.getElementById("progressText");
+        const progressFill = document.getElementById("progressFill");
 
-          const evtSrc = new EventSource("/bulkWrite?count=" + count);
-          evtSrc.onmessage = (e) => {
-            const data = JSON.parse(e.data);
-            document.getElementById("progressText").innerText = data.message;
-            document.getElementById("progressFill").style.width = data.percent + "%";
-            if (data.done) {
-              overlay.style.display = "none";
-              evtSrc.close();
-              document.getElementById("searchContainer").style.display = "block";
-            }
-          };
-        };
+        overlay.style.display = "flex";
+        progressFill.style.width = "0%";
+        progressText.innerText = "Starting bulk write...";
+
+        const stepCount = 10;
+        for (let step = 1; step <= stepCount; step++) {
+          progressText.innerText = \`Writing step \${step} of \${stepCount}...\`;
+          const res = await fetch(\`/bulkWriteStep?total=\${total}&step=\${step}\`);
+          const data = await res.json();
+
+          progressText.innerText = data.message;
+          progressFill.style.width = data.percent + "%";
+
+          if (data.done) break;
+        }
+
+        progressText.innerText = "✅ Bulk write completed!";
+        await new Promise(r => setTimeout(r, 1000));
+        overlay.style.display = "none";
+        document.getElementById("searchContainer").style.display = "block";
+      };
+
 
         document.getElementById("searchBtn").onclick = async () => {
           const key = document.getElementById("searchKey").value;
@@ -170,14 +180,13 @@ app.post("/write", async (req, res) => {
   }
 });
 
-app.get("/bulkWrite", async (req, res) => {
-  res.setHeader("Content-Type", "text/event-stream");
-  res.setHeader("Cache-Control", "no-cache");
-  res.setHeader("Connection", "keep-alive");
-
-  const total = parseInt(req.query.count || "1000000");
-  const batchSize = 10000;
-  let inserted = 0;
+app.get("/bulkWriteStep", async (req, res) => {
+  const total = parseInt(req.query.total || "1000000");
+  const step = parseInt(req.query.step || "1");
+  const stepCount = 10;
+  const stepSize = Math.ceil(total / stepCount);
+  const start = (step - 1) * stepSize;
+  const end = Math.min(total, start + stepSize);
 
   const client = await getClient(members[0]);
   await client.connect();
@@ -185,26 +194,26 @@ app.get("/bulkWrite", async (req, res) => {
   const coll = db.collection(collName);
 
   try {
-    while (inserted < total) {
-      const batch = Array.from({ length: Math.min(batchSize, total - inserted) }, () => ({
-        attr1: randomText(8),
-        attr2: randomText(12),
-        attr3: randomText(6),
-        ts: new Date(),
-        host: os.hostname(),
-      }));
-      await coll.insertMany(batch);
-      inserted += batch.length;
+    const batch = Array.from({ length: end - start }, () => ({
+      attr1: randomText(8),
+      attr2: randomText(12),
+      attr3: randomText(6),
+      ts: new Date(),
+      host: os.hostname(),
+    }));
 
-      const percent = Math.round((inserted / total) * 100);
-      res.write(`data: ${JSON.stringify({ message: "Inserted " + inserted + " / " + total, percent })}\\n\\n`);
-    }
-    res.write(`data: ${JSON.stringify({ message: "✅ Completed bulk insert of " + total + " records", percent: 100, done: true })}\\n\\n`);
+    await coll.insertMany(batch);
+    const percent = Math.round((end / total) * 100);
+
+    res.json({
+      message: `Inserted ${end} / ${total}`,
+      percent,
+      done: end >= total
+    });
   } catch (e) {
-    res.write(`data: ${JSON.stringify({ message: "❌ Error: " + e.message, percent: 100, done: true })}\\n\\n`);
+    res.status(500).json({ message: "❌ Error: " + e.message, percent: 100, done: true });
   } finally {
     await client.close();
-    res.end();
   }
 });
 
