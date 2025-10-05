@@ -76,10 +76,20 @@
     document.getElementById("searchBtn").onclick = async () => {
       const key = document.getElementById("searchKey").value;
       const value = document.getElementById("searchValue").value;
-      document.getElementById("searchResult").textContent = "";
-      const res = await fetch("/search?key=" + encodeURIComponent(key) + "&value=" + encodeURIComponent(value));
-      const text = await res.text();
-      document.getElementById("searchResult").textContent = text;
+      document.getElementById("searchResult").textContent = "Searching...";
+      try {
+        const res = await fetch("/search?key=" + encodeURIComponent(key) + "&value=" + encodeURIComponent(value));
+        if (!res.ok) {
+          const text = await res.text();
+          document.getElementById("searchResult").textContent = "Error: " + text;
+          return;
+        }
+        const data = await res.json();
+        const out = `Found ${data.docs.length} docs (time: ${data.timeMs} ms)\n\n` + JSON.stringify(data.docs, null, 2);
+        document.getElementById("searchResult").textContent = out;
+      } catch (e) {
+        document.getElementById("searchResult").textContent = "Search failed: " + e.message;
+      }
     };
   </script>
 </body>

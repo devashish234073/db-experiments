@@ -145,9 +145,11 @@ app.get("/search", async (req, res) => {
     const client = await getClient(members[0]);
     await client.connect();
     const db = client.db(dbName);
+    const start = Date.now();
     const docs = await db.collection(collName).find({ [key]: value }).limit(10).toArray();
+    const durationMs = Date.now() - start;
     await client.close();
-    res.send(JSON.stringify(docs, null, 2));
+    res.json({ docs, timeMs: durationMs });
   } catch (err) {
     res.status(500).send("Search failed: " + err.message);
   }
