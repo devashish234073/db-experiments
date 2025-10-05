@@ -76,6 +76,7 @@
     document.getElementById("searchBtn").onclick = async () => {
       const key = document.getElementById("searchKey").value;
       const value = document.getElementById("searchValue").value;
+      document.getElementById("searchResult").textContent = "";
       const res = await fetch("/search?key=" + encodeURIComponent(key) + "&value=" + encodeURIComponent(value));
       const text = await res.text();
       document.getElementById("searchResult").textContent = text;
