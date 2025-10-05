@@ -15,6 +15,9 @@ const members = process.env.MONGO_RS_MEMBERS
 const dbName = "experimentDB";
 const collName = "testdata";
 
+// In-memory store for inserted documents (to simulate replication / fast search)
+const inMemoryStore = [];
+
 // Helper: get direct connection to a specific node
 async function getClient(member) {
   const uri = `mongodb://${member}/?directConnection=true`;
@@ -91,6 +94,8 @@ app.post("/write", async (req, res) => {
       ts: new Date(),
       host: os.hostname(),
     });
+    // also save in in-memory store
+    inMemoryStore.push({ message: req.body.message, ts: new Date(), host: os.hostname() });
     await client.close();
     res.redirect("/");
   } catch (err) {
@@ -121,6 +126,8 @@ app.get("/bulkWriteStep", async (req, res) => {
     }));
 
     await coll.insertMany(batch);
+      // add to in-memory store as well
+      inMemoryStore.push(...batch);
     const percent = Math.round((end / total) * 100);
 
     res.json({
@@ -152,6 +159,27 @@ app.get("/search", async (req, res) => {
     res.json({ docs, timeMs: durationMs });
   } catch (err) {
     res.status(500).send("Search failed: " + err.message);
+  }
+});
+
+// Search in in-memory store
+app.get("/searchInMem", async (req, res) => {
+  const key = req.query.key;
+  const value = req.query.value;
+  if (!key || !value) return res.send("Provide ?key= and ?value=");
+
+  try {
+    const start = Date.now();
+    // simple filter (string equality)
+    const docs = inMemoryStore.filter(d => {
+      const v = d[key];
+      if (v === undefined) return false;
+      return String(v) === String(value);
+    }).slice(0, 10);
+    const durationMs = Date.now() - start;
+    res.json({ docs, timeMs: durationMs });
+  } catch (err) {
+    res.status(500).send("SearchInMem failed: " + err.message);
   }
 });
 

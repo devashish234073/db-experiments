@@ -39,10 +39,18 @@
 
   <div id="searchContainer" style="margin-top:20px;">
     <h3>Search DB</h3>
-    <input id="searchKey" placeholder="Enter attribute key (e.g. attr1)" />
-    <input id="searchValue" placeholder="Enter value" />
-    <button id="searchBtn">Search</button>
-    <pre id="searchResult"></pre>
+  <input id="searchKey" placeholder="Enter attribute key (e.g. attr1)" />
+  <input id="searchValue" placeholder="Enter value" />
+  <table>
+    <tr>
+        <td><button id="searchBtn">Search Db</button></td>
+        <td><button id="searchInMemBtn">Search In-Memory</button></td>
+    </tr>
+    <tr>
+        <td><pre id="searchResult"></pre></td>
+        <td><pre id="searchResultInMem"></pre></td>
+    </tr>
+  </table>
   </div>
   <script>
     document.getElementById("startBulk").onclick = async () => {
@@ -89,6 +97,24 @@
         document.getElementById("searchResult").textContent = out;
       } catch (e) {
         document.getElementById("searchResult").textContent = "Search failed: " + e.message;
+      }
+    };
+    document.getElementById("searchInMemBtn").onclick = async () => {
+      const key = document.getElementById("searchKey").value;
+      const value = document.getElementById("searchValue").value;
+      document.getElementById("searchResultInMem").textContent = "Searching in-memory...";
+      try {
+        const res = await fetch("/searchInMem?key=" + encodeURIComponent(key) + "&value=" + encodeURIComponent(value));
+        if (!res.ok) {
+          const text = await res.text();
+          document.getElementById("searchResultInMem").textContent = "Error: " + text;
+          return;
+        }
+        const data = await res.json();
+        const out = `Found ${data.docs.length} docs in-memory (time: ${data.timeMs} ms)\n\n` + JSON.stringify(data.docs, null, 2);
+        document.getElementById("searchResultInMem").textContent = out;
+      } catch (e) {
+        document.getElementById("searchResultInMem").textContent = "Search failed: " + e.message;
       }
     };
   </script>
