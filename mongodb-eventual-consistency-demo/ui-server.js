@@ -83,6 +83,44 @@ app.get("/bulkWritePage", (req, res) => {
   res.send(html);
 });
 
+// Endpoint to create an index on a given attribute
+app.post("/createIndex", async (req, res) => {
+  const attr = req.query.attr;
+
+  // Basic validation
+  if (!attr || typeof attr !== 'string' || attr.trim() === '') {
+    return res.status(400).json({ error: "Missing or invalid 'attr' query parameter" });
+  }
+
+  // Optional: restrict to known safe field names (e.g., attr1, attr2, attr3)
+  const allowedAttrs = ['attr1', 'attr2', 'attr3', 'message', 'host'];
+  if (!allowedAttrs.includes(attr)) {
+    return res.status(400).json({ 
+      error: `Indexing not allowed on '${attr}'. Allowed: ${allowedAttrs.join(', ')}` 
+    });
+  }
+
+  try {
+    const client = await getClient(members[0]); // connect to primary
+    await client.connect();
+    const db = client.db(dbName);
+    const coll = db.collection(collName);
+
+    // Create index (idempotent — safe to call multiple times)
+    const result = await coll.createIndex({ [attr]: 1 });
+    
+    await client.close();
+
+    res.json({
+      message: `Index created on '${attr}'`,
+      indexName: result // e.g., "attr2_1"
+    });
+  } catch (err) {
+    console.error("Index creation failed:", err);
+    res.status(500).json({ error: "Index creation failed: " + err.message });
+  }
+});
+
 // Insert document into PRIMARY (assumes members[0] is primary)
 app.post("/write", async (req, res) => {
   try {
