@@ -1,41 +1,105 @@
 <!DOCTYPE html>
 <html>
+
 <head>
   <title>MongoDB Replica Set UI</title>
   <style>
-    body { font-family: Arial, sans-serif; margin: 20px; }
-    .nodes { display: flex; gap: 20px; align-items: flex-start; }
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+    }
+
+    .nodes {
+      display: flex;
+      gap: 20px;
+      align-items: flex-start;
+    }
+
     .overlay {
-      position: fixed; top: 0; left: 0;
-      width: 100%; height: 100%;
-      background: rgba(0,0,0,0.8);
-      color: white; font-size: 20px;
-      display: flex; align-items: center; justify-content: center;
-      z-index: 9999; flex-direction: column;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.8);
+      color: white;
+      font-size: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+      flex-direction: column;
     }
+
     #progressBar {
-      width: 60%; height: 20px;
-      background: #444; border-radius: 10px; margin-top: 10px;
+      width: 60%;
+      height: 20px;
+      background: #444;
+      border-radius: 10px;
+      margin-top: 10px;
     }
+
     #progressFill {
-      height: 100%; width: 0%; background: limegreen; border-radius: 10px;
+      height: 100%;
+      width: 0%;
+      background: limegreen;
+      border-radius: 10px;
     }
-    .node { margin-bottom: 20px; padding: 10px; border: 1px solid #ccc; border-radius: 4px; }
-    pre { background: #f5f5f5; padding: 8px; overflow: auto; }
+
+    .node {
+      margin-bottom: 20px;
+      padding: 10px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+    }
+
+    pre {
+      background: #f5f5f5;
+      padding: 8px;
+      overflow: auto;
+    }
+
     #startBulk {
-      width:200px;
+      width: 200px;
     }
+
     button {
       border: none;
       background-color: green;
       color: white;
       height: 35px;
     }
+
     button:active {
       color: green;
     }
+
+    .spinner {
+      border: 2px solid #f3f3f3;
+      border-top: 2px solid #3498db;
+      border-radius: 50%;
+      width: 16px;
+      height: 16px;
+      animation: spin 1s linear infinite;
+      display: inline-block;
+      margin-left: 8px;
+      vertical-align: middle;
+      display: none;
+      /* hidden by default */
+    }
+
+    @keyframes spin {
+      0% {
+        transform: rotate(0deg);
+      }
+
+      100% {
+        transform: rotate(360deg);
+      }
+    }
   </style>
 </head>
+
 <body>
   <a href="/">Home</a><br>
   <label>Bulk Insert Count:</label>
@@ -47,23 +111,35 @@
 
   <div id="overlay" class="overlay" style="display:none;">
     <div id="progressText">Starting write...</div>
-    <div id="progressBar"><div id="progressFill"></div></div>
+    <div id="progressBar">
+      <div id="progressFill"></div>
+    </div>
   </div>
 
   <div id="searchContainer" style="margin-top:20px;">
     <h3>Search DB</h3>
-  <input id="searchKey" placeholder="Enter attribute key (e.g. attr1)" />
-  <input id="searchValue" placeholder="Enter value" />
-  <table>
-    <tr>
+    <input id="searchKey" placeholder="Enter attribute key (e.g. attr1)" />
+    <input id="searchValue" placeholder="Enter value" />
+    <table>
+      <tr>
         <td><button id="searchBtn">Search Db</button></td>
         <td><button id="searchInMemBtn">Search In-Memory</button></td>
-    </tr>
-    <tr>
-        <td><pre id="searchResult"></pre></td>
-        <td><pre id="searchResultInMem"></pre></td>
-    </tr>
-  </table>
+      </tr>
+      <tr>
+        <td>
+          <pre id="searchResult"></pre>
+        </td>
+        <td>
+          <pre id="searchResultInMem"></pre>
+        </td>
+      </tr>
+    </table>
+    <div style="margin-top:20px;">
+      <h3>Create Index</h3>
+      <button id="createIndexBtn">Create Index on Attribute</button>
+      <span class="spinner" id="indexSpinner"></span>
+      <pre id="indexResult" style="margin-top:10px; background:#f0f0f0; padding:8px; display:none;"></pre>
+    </div>
   </div>
   <script>
     document.getElementById("startBulk").onclick = async () => {
@@ -76,8 +152,8 @@
       progressFill.style.width = "0%";
       progressText.innerText = "Starting bulk write...";
 
-      const stepCount = parseInt(total/100000);
-      let storeInMemory = document.getElementById("storeInMemory").checked?"Y":"N";
+      const stepCount = parseInt(total / 100000);
+      let storeInMemory = document.getElementById("storeInMemory").checked ? "Y" : "N";
       for (let step = 1; step <= stepCount; step++) {
         progressText.innerText = `Writing step ${step} of ${stepCount}...`;
         const res = await fetch(`/bulkWriteStep?total=${total}&step=${step}&stepCount=${stepCount}&storeInMemory=${storeInMemory}`);
@@ -93,6 +169,44 @@
       await new Promise(r => setTimeout(r, 1000));
       overlay.style.display = "none";
       //document.getElementById("searchContainer").style.display = "block";
+    };
+
+    document.getElementById("createIndexBtn").onclick = async () => {
+      const attr = prompt("Enter the attribute name to index (e.g., attr1, attr2, attr3):");
+      if (!attr || attr.trim() === "") {
+        alert("No attribute provided. Index creation cancelled.");
+        return;
+      }
+
+      const trimmedAttr = attr.trim();
+      const spinner = document.getElementById("indexSpinner");
+      const resultBox = document.getElementById("indexResult");
+
+      // Show spinner, hide old result
+      spinner.style.display = "inline-block";
+      resultBox.style.display = "none";
+
+      try {
+        const res = await fetch(`/createIndex?attr=${encodeURIComponent(trimmedAttr)}`, {
+          method: "POST"
+        });
+
+        const data = await res.json();
+        if (res.ok) {
+          resultBox.textContent = "✅ Success: " + data.message + "\nIndex name: " + data.indexName;
+          alert("Index created successfully on '" + trimmedAttr + "'");
+        } else {
+          resultBox.textContent = "❌ Error: " + (data.error || "Unknown error");
+          alert("Failed to create index: " + (data.error || "Unknown error"));
+        }
+      } catch (e) {
+        resultBox.textContent = "❌ Network error: " + e.message;
+        alert("Network error: " + e.message);
+      } finally {
+        // Hide spinner when done
+        spinner.style.display = "none";
+        resultBox.style.display = "block";
+      }
     };
 
     document.getElementById("searchBtn").onclick = async () => {
@@ -133,4 +247,5 @@
     };
   </script>
 </body>
+
 </html>
