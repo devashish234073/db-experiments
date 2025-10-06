@@ -22,14 +22,27 @@
     }
     .node { margin-bottom: 20px; padding: 10px; border: 1px solid #ccc; border-radius: 4px; }
     pre { background: #f5f5f5; padding: 8px; overflow: auto; }
+    button {
+      border: none;
+      background-color: green;
+      color: white;
+      height: 35px;
+    }
+    button:active {
+      color: green;
+    }
+    #insertDoc {
+      width: 315px;
+    }
   </style>
 </head>
 <body>
   <h1>MongoDB Replica Set UI</h1>
   
   <form method="POST" action="/write">
-    <input name="message" placeholder="Message" required style="width: 300px; padding: 5px;" />
-    <button type="submit">Insert Document</button>
+    <input name="message" placeholder="Message" required style="width: 300px; padding: 5px;" /><br>
+    <input type="checkbox" name="storeInMemory" id="storeInMemory">Store In Memory Also<br>
+    <button type="submit" id="insertDoc">Insert Document</button>
   </form>
 
   <a href="bulkWritePage">Bulk Write</a>

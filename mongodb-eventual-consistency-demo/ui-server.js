@@ -94,8 +94,10 @@ app.post("/write", async (req, res) => {
       ts: new Date(),
       host: os.hostname(),
     });
-    // also save in in-memory store
-    inMemoryStore.push({ message: req.body.message, ts: new Date(), host: os.hostname() });
+    if(req.body.storeInMemory=="on") {
+      // also save in in-memory store
+      inMemoryStore.push({ message: req.body.message, ts: new Date(), host: os.hostname() });
+    }
     await client.close();
     res.redirect("/");
   } catch (err) {
@@ -107,6 +109,7 @@ app.get("/bulkWriteStep", async (req, res) => {
   const total = parseInt(req.query.total || "1000000");
   const step = parseInt(req.query.step || "1");
   const stepCount = parseInt(req.query.stepCount || "10");
+  const storeInMemory = req.query.storeInMemory === "Y";
   const stepSize = Math.ceil(total / stepCount);
   const start = (step - 1) * stepSize;
   const end = Math.min(total, start + stepSize);
@@ -126,8 +129,10 @@ app.get("/bulkWriteStep", async (req, res) => {
     }));
 
     await coll.insertMany(batch);
+    if(storeInMemory) {
       // add to in-memory store as well
       inMemoryStore.push(...batch);
+    }
     const percent = Math.round((end / total) * 100);
 
     res.json({

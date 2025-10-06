@@ -22,6 +22,18 @@
     }
     .node { margin-bottom: 20px; padding: 10px; border: 1px solid #ccc; border-radius: 4px; }
     pre { background: #f5f5f5; padding: 8px; overflow: auto; }
+    #startBulk {
+      width:200px;
+    }
+    button {
+      border: none;
+      background-color: green;
+      color: white;
+      height: 35px;
+    }
+    button:active {
+      color: green;
+    }
   </style>
 </head>
 <body>
@@ -29,7 +41,8 @@
   <label>Bulk Insert Count:</label>
   <select id="recordCount">
     Options will be injected by server
-  </select>
+  </select><br>
+  <input type="checkbox" name="storeInMemory" id="storeInMemory">Store In Memory Also<br>
   <button id="startBulk">Start Bulk Write</button>
 
   <div id="overlay" class="overlay" style="display:none;">
@@ -64,9 +77,10 @@
       progressText.innerText = "Starting bulk write...";
 
       const stepCount = parseInt(total/100000);
+      let storeInMemory = document.getElementById("storeInMemory").checked?"Y":"N";
       for (let step = 1; step <= stepCount; step++) {
         progressText.innerText = `Writing step ${step} of ${stepCount}...`;
-        const res = await fetch(`/bulkWriteStep?total=${total}&step=${step}&stepCount=${stepCount}`);
+        const res = await fetch(`/bulkWriteStep?total=${total}&step=${step}&stepCount=${stepCount}&storeInMemory=${storeInMemory}`);
         const data = await res.json();
 
         progressText.innerText = data.message;
