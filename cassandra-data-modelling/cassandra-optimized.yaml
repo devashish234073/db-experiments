@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: Cassandra instance optimized for query: SELECT * FROM data WHERE userId=? AND dob=? ORDER BY loginDate
+Description: Cassandra instance optimized for query
 
 Resources:
   MyVPC:
