@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html>
+<head><title>Login Results</title></head>
+<body>
+  <h2>Results for userId: <%= userId %> | DOB: <%= dob %></h2>
+  <table border="1">
+    <tr><th>Login Date</th><th>Time</th><th>First</th><th>Last</th></tr>
+    <% rows.forEach(row => { %>
+    <tr>
+      <td><%= new Date(row.logindate).toLocaleString() %></td>
+      <td><%= row.logintime %></td>
+      <td><%= row.firstname %></td>
+      <td><%= row.lastname %></td>
+    </tr>
+    <% }) %>
+  </table>
+  <br><a href="/">← Back to Login</a>
+</body>
+</html>

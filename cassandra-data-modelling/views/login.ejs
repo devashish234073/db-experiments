@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+<head><title>Cassandra Login</title></head>
+<body>
+  <h2>Login</h2>
+  <form method="POST" action="/login">
+    <label>UserID: <input type="text" name="userId" required></label><br><br>
+    <label>DOB (YYYY-MM-DD): <input type="date" name="dob" required></label><br><br>
+    <button type="submit">Login</button>
+  </form>
+
+  <hr>
+  <h3>Bulk Random Login</h3>
+  <form onsubmit="bulkLogin(event)">
+    <label>Number of logins: <input type="number" id="count" min="1" max="50" value="5"></label>
+    <button type="submit">Generate & Login</button>
+  </form>
+
+  <script>
+    async function bulkLogin(e) {
+      e.preventDefault();
+      const count = document.getElementById('count').value;
+      const res = await fetch('/bulk-login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: 'count=' + count
+      });
+      const data = await res.json();
+      if (data.success) alert(`Generated ${data.count} logins!`);
+    }
+  </script>
+</body>
+</html>
